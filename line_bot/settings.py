@@ -17,9 +17,8 @@ ROOT_DIR = environ.Path(__file__) - 2  # 取得 settings 檔案路徑的上兩�
 
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool(
-    "DJANGO_READ_DOT_ENV_FILE", default=False
-)  # check if need to read .env file
+# check if need to read .env file
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
 
 if READ_DOT_ENV_FILE:
     env.read_env(str(ROOT_DIR.path(".env")))
@@ -46,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "line_bot",
 ]
 
 MIDDLEWARE = [
