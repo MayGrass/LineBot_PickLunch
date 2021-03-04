@@ -15,9 +15,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
 from line_bot.Chat import views
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("callback", views.callback),
 ]
+
+if settings.DEBUG:
+    urlpatterns += (path("admin/", admin.site.urls),)
