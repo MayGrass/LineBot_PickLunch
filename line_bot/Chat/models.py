@@ -7,6 +7,7 @@ class Store(models.Model):
     store_type = models.ManyToManyField("StoreType")
     store_phone = models.CharField(max_length=20, null=True, help_text="商家號碼")
     google_map_url = models.URLField(unique=True, help_text="Google map商家網址")
+    google_photo_url = models.URLField(default="https://i.imgur.com/v8oKeSg.png", max_length=500)
     group = models.ManyToManyField("Group", blank=True)
     create_time = models.DateTimeField(auto_now_add=True)
 

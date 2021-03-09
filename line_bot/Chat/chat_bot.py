@@ -4,7 +4,9 @@ from linebot.models import (
     TextMessage,
     TemplateSendMessage,
     ConfirmTemplate,
+    ButtonsTemplate,
     MessageAction,
+    URIAction,
 )
 from django.db import transaction
 from django.core.cache import cache as redis
@@ -142,6 +144,12 @@ class ChatBot:
                         store_phone=store_data.get("formatted_phone_number"),
                         google_map_url=store_data["url"],
                     )
+                    # 如果有店家照片再存
+                    if store_data.get("photos"):
+                        store.google_photo_url = self.google_map_api.place_photo(
+                            store_data["photos"][0]["photo_reference"]
+                        )
+                        store.save()
                     # 為店家綁定群組
                     group = Group.objects.get(group_id=self.group_id)
                     store.group.add(group)
@@ -174,10 +182,26 @@ class ChatBot:
             .first()
         )
         if random_result:
-            reply_text = f"{random_result['store_name']}\n{random_result['store_phone']}\n{random_result['google_map_url']}"
+            reply_text = (
+                TemplateSendMessage(
+                    alt_text="店家查詢確認",
+                    template=ButtonsTemplate(
+                        thumbnail_image_url=random_result["google_photo_url"],
+                        title=random_result["store_name"],
+                        text=f"電話: {random_result['store_phone']}\n地址: {random_result['store_address']}",
+                        actions=[
+                            MessageAction(label="再抽一次", text="!吃"),
+                            URIAction(label="GoogleMap", uri=random_result["google_map_url"]),
+                        ],
+                    ),
+                ),
+            )
         else:
-            reply_text = "目前群組裡沒有任何商家清單，管理員請先輸入 !add 來開啟美食清單加入功能"
-        self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text=reply_text))
+            reply_text = (TextMessage(text="目前群組裡沒有任何商家清單，管理員請先輸入 !add 來開啟美食清單加入功能"),)
+        self.line_bot_api.reply_message(
+            self.event.reply_token,
+            reply_text,
+        )
 
 
 class GoogleMapAPI:
@@ -196,7 +220,7 @@ class GoogleMapAPI:
             return False
 
     def __place_detail(self, place_id):
-        fields = "name,rating,formatted_address,formatted_phone_number,url,type"
+        fields = "name,rating,formatted_address,formatted_phone_number,url,type,photo"
         api_result = requests.get(
             f"{self.url}details/json?place_id={place_id}&fields={fields}&language=zh-TW&key={self.api_key}"
         ).json()
@@ -205,3 +229,6 @@ class GoogleMapAPI:
         else:
             result = False
         return result
+
+    def place_photo(self, photoreference):
+        return f"{self.url}photo?maxwidth=400&photoreference={photoreference}&key={self.api_key}"
