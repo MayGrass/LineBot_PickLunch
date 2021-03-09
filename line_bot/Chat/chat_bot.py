@@ -29,6 +29,7 @@ class ChatBot:
             "!admin": self.__set_group_admin,
             "!add": self.__starting_add_store,
             "!吃": self.__random_eat_store,
+            "!取消": self.__cancle,
         }  # 一層指令
         self.redis_key = {"add": self.__search_store, "save_store": self.__save_store}  # 二層後指令
 
@@ -85,7 +86,7 @@ class ChatBot:
                     group.save()
                     reply_text.append(TextMessage(text=f"已將「{user_name}」設為此群組的機器人管理員"))
                 else:
-                    reply_text.append(TextMessage(text=f"機器人管理員已是「{user_name}"))
+                    reply_text.append(TextMessage(text=f"機器人管理員已是「{group.admin}"))
                     reply_text.append(TextMessage(text="目前還沒有設置多個管理者的打算"))
         except:
             logger.exception(f"{user_name} set admin fail!")
@@ -202,6 +203,11 @@ class ChatBot:
             self.event.reply_token,
             reply_text,
         )
+
+    # 取消目前所有互動功能
+    def __cancle(self):
+        redis.delete_pattern(f"{self.group_id}:*")  # 講此群組的redis暫存都刪除
+        self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text="互動功能取消"))
 
 
 class GoogleMapAPI:
