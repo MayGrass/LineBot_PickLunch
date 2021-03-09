@@ -177,6 +177,7 @@ class ChatBot:
             Store.objects.filter(
                 Q(store_type__type_name__in=["food", "restaurant"])
                 & ~Q(store_type__type_name__in="cafe")
+                & Q(group=Group.objects.get(group_id=self.group_id))
             )
             .order_by("?")
             .values()
