@@ -84,6 +84,9 @@ WSGI_APPLICATION = "line_bot.wsgi.application"
 
 DATABASES = {"default": env.db()}
 
+# Redis
+CACHES = {"default": env.cache("REDIS_URL")}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -127,6 +130,8 @@ LINE_CHANNEL_ACCESS_TOKEN = env.str("LINE_CHANNEL_ACCESS_TOKEN")
 
 LINE_CHANNEL_SECRET = env.str("LINE_CHANNEL_SECRET")
 
+GOOGLE_API_KEY = env.str("GOOGLE_API_KEY")
+
 # Log紀錄
 LOGGING = {
     "version": 1,
@@ -146,11 +151,11 @@ LOGGING = {
     "loggers": {
         "": {
             "handlers": ["console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "level": env.str("DJANGO_LOG_LEVEL", default="INFO"),
         },
         "django": {
             "handlers": ["console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "level": "INFO",
             "propagate": False,
         },
     },

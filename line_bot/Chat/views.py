@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(settings.LINE_CHANNEL_SECRET)
 
-chat_bot = ChatBot(line_bot_api, handler)
+chat_bot = ChatBot(line_bot_api)
 
 # /callback 負責接收line傳過來的訊息
 @csrf_exempt
@@ -41,8 +41,7 @@ def callback(request):
 # 處理傳送過來的訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handler_message(event):
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=event.message.text))
-
+    chat_bot.receive_command(event)
 
 # 處理剛加入群組的事件
 @handler.add(JoinEvent)
