@@ -7,6 +7,10 @@ from linebot.models import (
     ButtonsTemplate,
     MessageAction,
     URIAction,
+    TextSendMessage,
+    QuickReplyButton,
+    QuickReply,
+    FlexSendMessage,
 )
 from django.db import transaction
 from django.core.cache import cache as redis
@@ -26,9 +30,11 @@ class ChatBot:
         self.user_id = None
         self.google_map_api = GoogleMapAPI()  # google map api串接
         self.command_dict = {
+            "!help": self.__command_list,
             "!admin": self.__set_group_admin,
             "!add": self.__starting_add_store,
             "!吃": self.__random_eat_store,
+            "!ls": self.__list_eat_store,
             "!取消": self.__cancle,
         }  # 一層指令
         self.redis_key = {"add": self.__search_store, "save_store": self.__save_store}  # 二層後指令
@@ -38,6 +44,10 @@ class ChatBot:
         logger.debug(f"receive event: {event}")
         self.event = event
         self.group_id = event.source.group_id
+        if not self.group_id:
+            self.line_bot_api.reply_message(
+                self.event.reply_token, TextMessage(text="把機器人加入群組才能發揮他的功能歐")
+            )
         self.user_id = event.source.user_id
         self.text = self.event.message.text
         self.command_dict.get(self.text, self.__second_command)()
@@ -55,6 +65,21 @@ class ChatBot:
         logger.debug("do nothing")
         pass
 
+    # 指令集
+    def __command_list(self):
+        command_list = [
+            QuickReplyButton(action=MessageAction(label=command, text=command))
+            for command in self.command_dict.keys()
+        ]
+        self.line_bot_api.reply_message(
+            self.event.reply_token,
+            TextSendMessage(
+                text="機器人指令集",
+                quick_reply=QuickReply(items=command_list),
+            ),
+        )
+
+    # 儲藏群組資料
     def save_group_data(self, event):
         # 獲得群組資料
         group_id = event.source.group_id
@@ -75,7 +100,7 @@ class ChatBot:
         user_name = user_profile.display_name
         # 將管理員資料存進資料庫
         try:
-            reply_text = []
+            reply = []
             group_admin, created = GroupAdmin.objects.get_or_create(
                 user_id=self.user_id, user_name=user_name
             )
@@ -84,14 +109,14 @@ class ChatBot:
                 if not group.admin:
                     group.admin = group_admin
                     group.save()
-                    reply_text.append(TextMessage(text=f"已將「{user_name}」設為此群組的機器人管理員"))
+                    reply.append(TextMessage(text=f"已將「{user_name}」設為此群組的機器人管理員"))
                 else:
-                    reply_text.append(TextMessage(text=f"機器人管理員已是「{group.admin}"))
-                    reply_text.append(TextMessage(text="目前還沒有設置多個管理者的打算"))
+                    reply.append(TextMessage(text=f"機器人管理員已是「{group.admin.user_name}」"))
+                    reply.append(TextMessage(text="目前還沒有設置多個管理者的打算"))
         except:
             logger.exception(f"{user_name} set admin fail!")
         else:
-            self.line_bot_api.reply_message(self.event.reply_token, reply_text)
+            self.line_bot_api.reply_message(self.event.reply_token, reply)
 
     # 開啟新增店家資訊功能
     def __starting_add_store(self):
@@ -109,15 +134,15 @@ class ChatBot:
         place_result = self.google_map_api.place_search(store_name=self.text)  # 店家資料搜尋
         if place_result:
             rate = f"{place_result.get('rating')}顆星" if place_result.get("rating") else "尚無評價"
-            reply_text = f"{place_result['name']}\n評價: {rate}\n{place_result['url']}"
+            reply = f"{place_result['name']}\n評價: {rate}\n{place_result['url']}"
             redis.set(f"{self.group_id}:save_store", place_result, 30)  # 店家資訊暫存
             redis.set(f"{self.group_id}:add", False, 60)  # 暫時關閉店家查詢功能
         else:
-            reply_text = "Google地圖搜尋無結果"
+            reply = "Google地圖搜尋無結果"
         self.line_bot_api.reply_message(
             self.event.reply_token,
             [
-                TextMessage(text=reply_text),
+                TextMessage(text=reply),
                 TemplateSendMessage(
                     alt_text="店家查詢確認",
                     template=ConfirmTemplate(
@@ -133,8 +158,11 @@ class ChatBot:
 
     # 將店家資訊存進資料庫
     def __save_store(self):
-        reply_text = []
-        if self.text == "Yes":
+        reply = []
+        # 兩個選項之外的回應就繼續查詢店家
+        if self.text != "Yes" and self.text != "Again":
+            self.__search_store()
+        elif self.text == "Yes":
             store_data = redis.get(f"{self.group_id}:save_store")
             try:
                 with transaction.atomic():
@@ -163,12 +191,14 @@ class ChatBot:
             except:
                 logging.exception(f"{store_data['name']} saving to database failed!")
             else:
-                reply_text.append(TextMessage(text="資料成功加進去囉!"))
-        reply_text.append(TextMessage(text="店家查詢繼續開放一分鐘"))
+                reply.append(TextMessage(text="資料成功加進去囉!"))
+        elif self.text == "Again":
+            reply.append(TextMessage(text="店家查詢繼續開放一分鐘"))
 
+        # 如果第一個if條件有達到，這邊不會執行
         redis.set(f"{self.group_id}:add", True, 60)  # 重新開放店家搜尋
         redis.delete(f"{self.group_id}:save_store")  # 刪除店家資料暫存
-        self.line_bot_api.reply_message(self.event.reply_token, reply_text)
+        self.line_bot_api.reply_message(self.event.reply_token, reply)
 
     # 隨機抽一家去吃
     def __random_eat_store(self):
@@ -184,9 +214,9 @@ class ChatBot:
             .first()
         )
         if random_result:
-            reply_text = (
+            reply = (
                 TemplateSendMessage(
-                    alt_text="店家查詢確認",
+                    alt_text="店家資訊",
                     template=ButtonsTemplate(
                         thumbnail_image_url=random_result["google_photo_url"],
                         title=random_result["store_name"],
@@ -199,10 +229,121 @@ class ChatBot:
                 ),
             )
         else:
-            reply_text = (TextMessage(text="目前群組裡沒有任何商家清單，管理員請先輸入 !add 來開啟美食清單加入功能"),)
+            reply = (TextMessage(text="目前群組裡沒有任何商家清單，管理員請先輸入 !add 來開啟美食清單加入功能"),)
         self.line_bot_api.reply_message(
             self.event.reply_token,
-            reply_text,
+            reply,
+        )
+
+    # 列出該群組目前所有吃的店家
+    def __list_eat_store(self):
+        eat_store_list = Store.objects.filter(
+            Q(store_type__type_name__in=["food", "restaurant"])
+            & ~Q(store_type__type_name__in="cafe")
+            & Q(group=Group.objects.get(group_id=self.group_id))
+        ).values("store_name", "store_address", "store_phone", "google_map_url")
+        if eat_store_list:
+            contents = [
+                {
+                    "type": "text",
+                    "text": "美食清單",
+                    "weight": "bold",
+                    "size": "lg",
+                    "adjustMode": "shrink-to-fit",
+                    "offsetBottom": "sm",
+                },
+                {"type": "separator"},
+            ]
+            for store in eat_store_list:
+                contents.append(
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "spacing": "xs",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text": store["store_name"],
+                                        "size": "sm",
+                                        "color": "#555555",
+                                        "adjustMode": "shrink-to-fit",
+                                        "wrap": True,
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": store["store_phone"],
+                                        "size": "sm",
+                                        "color": "#555555",
+                                        "adjustMode": "shrink-to-fit",
+                                        "wrap": True,
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": store["store_address"],
+                                        "size": "sm",
+                                        "color": "#555555",
+                                        "adjustMode": "shrink-to-fit",
+                                        "wrap": True,
+                                    },
+                                ],
+                                "flex": 2,
+                                "spacing": "xs",
+                            },
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "action": {
+                                            "type": "uri",
+                                            "label": "地圖",
+                                            "uri": store["google_map_url"],
+                                        },
+                                        "style": "primary",
+                                        "height": "sm",
+                                        "color": "#0080FF",
+                                    },
+                                    {
+                                        "type": "button",
+                                        "action": {
+                                            "type": "uri",
+                                            "label": "刪除",
+                                            "uri": "http://linecorp.com/",
+                                        },
+                                        "style": "primary",
+                                        "height": "sm",
+                                        "color": "#EA0000",
+                                    },
+                                ],
+                                "flex": 1,
+                                "spacing": "xs",
+                                "paddingTop": "md",
+                                "alignItems": "center",
+                            },
+                        ],
+                        "alignItems": "center",
+                        "paddingBottom": "md",
+                    }
+                )
+                contents.append({"type": "separator"})
+            reply = FlexSendMessage(
+                alt_text="美食清單",
+                contents={
+                    "type": "bubble",
+                    "body": {"type": "box", "layout": "vertical", "contents": contents},
+                    "styles": {"footer": {"separator": True}},
+                },
+            )
+        else:
+            reply = TextMessage(text="目前群組裡沒有任何商家清單，管理員請先輸入 !add 來開啟美食清單加入功能")
+        self.line_bot_api.reply_message(
+            self.event.reply_token,
+            reply,
         )
 
     # 取消目前所有互動功能

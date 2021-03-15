@@ -5,7 +5,14 @@ from django.views.decorators.csrf import csrf_exempt
 
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, JoinEvent
+from linebot.models import (
+    MessageEvent,
+    TextMessage,
+    TextSendMessage,
+    JoinEvent,
+    LeaveEvent,
+    FollowEvent,
+)
 from .chat_bot import ChatBot
 import logging
 
@@ -43,7 +50,22 @@ def callback(request):
 def handler_message(event):
     chat_bot.receive_command(event)
 
+
 # 處理剛加入群組的事件
 @handler.add(JoinEvent)
 def save_group_data(event):
     chat_bot.save_group_data(event)
+
+
+# 處理離開群組的事件
+@handler.add(LeaveEvent)
+def delete_group_data(event):
+    ...
+
+
+# 處理加機器人當好友的事件
+@handler.add(FollowEvent)
+def follow_bot(event):
+    line_bot_api.reply_message(
+        event.reply_token, TextMessage(text="歡迎加此機器人好友，此機器人僅提供群組服務，把他邀進群組吧！")
+    )
