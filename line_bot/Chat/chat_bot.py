@@ -206,11 +206,12 @@ class ChatBot:
         random_result = (
             Store.objects.filter(
                 Q(store_type__type_name__in=["food", "restaurant"])
-                & ~Q(store_type__type_name__in="cafe")
+                & ~Q(store_type__type_name="cafe")
                 & Q(group=Group.objects.get(group_id=self.group_id))
             )
             .order_by("?")
             .values()
+            .distinct()
             .first()
         )
         if random_result:
@@ -237,11 +238,16 @@ class ChatBot:
 
     # 列出該群組目前所有吃的店家
     def __list_eat_store(self):
-        eat_store_list = Store.objects.filter(
-            Q(store_type__type_name__in=["food", "restaurant"])
-            & ~Q(store_type__type_name__in="cafe")
-            & Q(group=Group.objects.get(group_id=self.group_id))
-        ).values("store_name", "store_address", "store_phone", "google_map_url")
+        eat_store_list = (
+            Store.objects.filter(
+                Q(store_type__type_name__in=["food", "restaurant"])
+                & ~Q(store_type__type_name="cafe")
+                & Q(group=Group.objects.get(group_id=self.group_id))
+            )
+            .values("store_name", "store_address", "store_phone", "google_map_url")
+            .distinct()
+        )
+        print(eat_store_list.query)
         if eat_store_list:
             contents = [
                 {
