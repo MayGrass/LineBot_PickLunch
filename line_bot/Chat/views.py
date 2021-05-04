@@ -1,20 +1,21 @@
-from line_bot.Chat.models import Group
+from line_bot.Chat.models import *
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
-
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent,
     TextMessage,
-    TextSendMessage,
     JoinEvent,
     LeaveEvent,
     FollowEvent,
+    PostbackEvent,
 )
 from .chat_bot import ChatBot
 import logging
+import json
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +70,22 @@ def follow_bot(event):
     line_bot_api.reply_message(
         event.reply_token, TextMessage(text="歡迎加此機器人好友，此機器人僅提供群組服務，把他邀進群組吧！")
     )
+
+
+# 處理加機器人當好友的事件
+@handler.add(PostbackEvent)
+def postback(event):
+    data = json.loads(event.postback.data)
+    # 將店家與指定群組解除綁定
+    if data.get("event") == "delete_store":
+        try:
+            with transaction.atomic():
+                group = Group.objects.get(group_id=data["group_id"])
+                store = Store.objects.get(id=data["store_id"])
+                store.group.remove(group)
+        except:
+            reply_text = f"系統發生錯誤，無法刪除『{data['store_name']}』"
+        else:
+            reply_text = f"已將『{data['store_name']}』從美食清單中移除"
+        finally:
+            line_bot_api.reply_message(event.reply_token, TextMessage(text=reply_text))

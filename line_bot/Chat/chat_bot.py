@@ -17,6 +17,7 @@ from django.core.cache import cache as redis
 import requests
 from django.conf import settings
 from django.db.models import Q
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -244,10 +245,9 @@ class ChatBot:
                 & ~Q(store_type__type_name="cafe")
                 & Q(group=Group.objects.get(group_id=self.group_id))
             )
-            .values("store_name", "store_address", "store_phone", "google_map_url")
+            .values("id", "store_name", "store_address", "store_phone", "google_map_url")
             .distinct()
         )
-        print(eat_store_list.query)
         if eat_store_list:
             contents = [
                 {
@@ -317,9 +317,16 @@ class ChatBot:
                                     {
                                         "type": "button",
                                         "action": {
-                                            "type": "uri",
+                                            "type": "postback",
                                             "label": "刪除",
-                                            "uri": "http://linecorp.com/",
+                                            "data": json.dumps(
+                                                {
+                                                    "event": "delete_store",
+                                                    "group_id": self.group_id,
+                                                    "store_id": store["id"],
+                                                    "store_name": store["store_name"],
+                                                }
+                                            ),
                                         },
                                         "style": "primary",
                                         "height": "sm",

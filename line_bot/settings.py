@@ -18,7 +18,9 @@ ROOT_DIR = environ.Path(__file__) - 2  # 取得 settings 檔案路徑的上兩�
 env = environ.Env()
 
 # check if need to read .env file
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+READ_DOT_ENV_FILE = env.bool(
+    "DJANGO_READ_DOT_ENV_FILE", default=False
+)  # export DJANGO_READ_DOT_ENV_FILE=True
 
 if READ_DOT_ENV_FILE:
     env.read_env(str(ROOT_DIR.path(".env")))
