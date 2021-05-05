@@ -76,8 +76,13 @@ def follow_bot(event):
 @handler.add(PostbackEvent)
 def postback(event):
     data = json.loads(event.postback.data)
-    # 將店家與指定群組解除綁定
-    if data.get("event") == "delete_store":
+    # 群組管理員可將店家與指定群組解除綁定
+    if (
+        data.get("event") == "delete_store"
+        and Group.objects.filter(
+            group_id=data.get("group_id"), admin__user_id=event.source.user_id
+        ).exists()
+    ):
         try:
             with transaction.atomic():
                 group = Group.objects.get(group_id=data["group_id"])
@@ -89,3 +94,5 @@ def postback(event):
             reply_text = f"已將『{data['store_name']}』從美食清單中移除"
         finally:
             line_bot_api.reply_message(event.reply_token, TextMessage(text=reply_text))
+    else:
+        line_bot_api.reply_message(event.reply_token, TextMessage(text="只有群組管理員才可執行刪除！"))
