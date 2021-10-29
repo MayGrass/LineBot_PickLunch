@@ -18,9 +18,7 @@ ROOT_DIR = environ.Path(__file__) - 2  # 取得 settings 檔案路徑的上兩�
 env = environ.Env()
 
 # check if need to read .env file
-READ_DOT_ENV_FILE = env.bool(
-    "DJANGO_READ_DOT_ENV_FILE", default=False
-)  # export DJANGO_READ_DOT_ENV_FILE=True
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)  # export DJANGO_READ_DOT_ENV_FILE=True
 
 if READ_DOT_ENV_FILE:
     env.read_env(str(ROOT_DIR.path(".env")))
@@ -133,6 +131,8 @@ LINE_CHANNEL_ACCESS_TOKEN = env.str("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = env.str("LINE_CHANNEL_SECRET")
 
 GOOGLE_API_KEY = env.str("GOOGLE_API_KEY")
+
+GOOGLE_APPS_SCRIPT_URL = env.str("GOOGLE_APPS_SCRIPT_URL")
 
 # Log紀錄
 LOGGING = {

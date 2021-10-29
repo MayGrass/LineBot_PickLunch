@@ -36,6 +36,7 @@ class ChatBot:
             "!add": self.__starting_add_store,
             "!吃": self.__random_eat_store,
             "!ls": self.__list_eat_store,
+            "!討債": self.__give_me_money,
             "!取消": self.__cancle,
         }  # 一層指令
         self.redis_key = {"add": self.__search_store, "save_store": self.__save_store}  # 二層後指令
@@ -46,9 +47,7 @@ class ChatBot:
         self.event = event
         self.group_id = event.source.group_id
         if not self.group_id:
-            self.line_bot_api.reply_message(
-                self.event.reply_token, TextMessage(text="把機器人加入群組才能發揮他的功能歐")
-            )
+            self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text="把機器人加入群組才能發揮他的功能歐"))
         self.user_id = event.source.user_id
         self.text = self.event.message.text
         self.command_dict.get(self.text, self.__second_command)()
@@ -69,8 +68,7 @@ class ChatBot:
     # 指令集
     def __command_list(self):
         command_list = [
-            QuickReplyButton(action=MessageAction(label=command, text=command))
-            for command in self.command_dict.keys()
+            QuickReplyButton(action=MessageAction(label=command, text=command)) for command in self.command_dict.keys()
         ]
         self.line_bot_api.reply_message(
             self.event.reply_token,
@@ -102,9 +100,7 @@ class ChatBot:
         # 將管理員資料存進資料庫
         try:
             reply = []
-            group_admin, created = GroupAdmin.objects.get_or_create(
-                user_id=self.user_id, user_name=user_name
-            )
+            group_admin, created = GroupAdmin.objects.get_or_create(user_id=self.user_id, user_name=user_name)
             with transaction.atomic():
                 group = Group.objects.get(group_id=self.group_id)
                 if not group.admin:
@@ -124,9 +120,7 @@ class ChatBot:
         # 限定管理員開啟功能
         if Group.objects.filter(group_id=self.group_id, admin__user_id=self.user_id).exists():
             redis.set(f"{self.group_id}:add", True, 60)  # 60秒存活
-            self.line_bot_api.reply_message(
-                self.event.reply_token, TextMessage(text="店家加入功能已開啟一分鐘，可以開始搜尋店家")
-            )
+            self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text="店家加入功能已開啟一分鐘，可以開始搜尋店家"))
         else:
             self.__do_nothing()
 
@@ -220,7 +214,7 @@ class ChatBot:
                 TemplateSendMessage(
                     alt_text="店家資訊",
                     template=ButtonsTemplate(
-                        thumbnail_image_url=random_result["google_photo_url"],
+                        thumbnail_image_url=random_result["google_photo_url"] + self.google_map_api.api_key,
                         title=random_result["store_name"],
                         text=f"電話: {random_result['store_phone']}\n地址: {random_result['store_address']}",
                         actions=[
@@ -364,6 +358,13 @@ class ChatBot:
         redis.delete_pattern(f"{self.group_id}:*")  # 講此群組的redis暫存都刪除
         self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text="互動功能取消"))
 
+    # 觸發Joey寫的Script讓群組發還錢訊息 雅匠RD群專用
+    def __give_me_money(self):
+        if self.group_id == "Cb041c4a0b6d85e9012c1c6787e466b62":
+            requests.get(settings.GOOGLE_APPS_SCRIPT_URL)
+        else:
+            self.line_bot_api.reply_message(self.event.reply_token, TextMessage(text="這個是作者群組專用的指令"))
+
 
 class GoogleMapAPI:
     def __init__(self):
@@ -392,4 +393,4 @@ class GoogleMapAPI:
         return result
 
     def place_photo(self, photoreference):
-        return f"{self.url}photo?maxwidth=400&photoreference={photoreference}&key={self.api_key}"
+        return f"{self.url}photo?maxwidth=400&photoreference={photoreference}&key="
