@@ -1,0 +1,8 @@
+# requirements.in
+django
+django-environ
+django-redis
+line-bot-sdk
+mysqlclient
+requests
+gunicorn
